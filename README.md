@@ -147,6 +147,99 @@ RUTA_EXCEL = Path(__file__).parent / "mi_reporte_custom.xlsx"
 
 ---
 
+## Automatización con GitHub Actions
+
+El script puede correr automáticamente en la nube usando GitHub Actions. Al terminar, el Excel actualizado se guarda directamente en el repositorio — sin necesidad de correrlo manualmente.
+
+### Cómo configurarlo
+
+#### Paso 1 — Crear el archivo del workflow
+
+Dentro del repositorio crea la carpeta `.github/workflows/` y dentro el archivo `update_report.yml` con este contenido:
+
+```yaml
+name: Actualizar FT Buffer Report
+
+on:
+  schedule:
+    - cron: "0 14 * * 1-5"   # Lunes a viernes a las 14:00 UTC (8:00 AM CST / 9:00 AM CDT)
+  workflow_dispatch:           # También se puede lanzar manualmente desde GitHub
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write          # Necesario para hacer commit del Excel generado
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: pip install requests beautifulsoup4 pandas openpyxl
+
+      - name: Ejecutar script
+        run: python ft_buffer_remaining_cap.py
+
+      - name: Guardar Excel en el repositorio
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "FT buffer remaining cap.xlsx"
+          git diff --cached --quiet || git commit -m "chore: actualizar reporte FT buffer [$(date +'%Y-%m-%d')]"
+          git push
+```
+
+#### Paso 2 — Subir el workflow al repositorio
+
+```bash
+git add .github/workflows/update_report.yml
+git commit -m "Add GitHub Actions workflow for automated report"
+git push
+```
+
+#### Paso 3 — Verificar que funciona
+
+1. Ve a tu repositorio en GitHub.
+2. Haz clic en la pestaña **Actions**.
+3. Verás el workflow `Actualizar FT Buffer Report`.
+4. Para probarlo manualmente: haz clic en el workflow → **Run workflow** → **Run workflow**.
+
+---
+
+### Ajustar el horario (`cron`)
+
+El campo `cron` usa la sintaxis estándar de Unix en **UTC**. México está en **UTC-6** (CST) o **UTC-5** (CDT en verano).
+
+| Quieres que corra a... | Zona | Cron (UTC) |
+|---|---|---|
+| 8:00 AM CST (invierno) | UTC-6 | `0 14 * * 1-5` |
+| 8:00 AM CDT (verano) | UTC-5 | `0 13 * * 1-5` |
+| 6:00 AM CST todos los días | UTC-6 | `0 12 * * *` |
+| Cada hora en días hábiles | — | `0 * * * 1-5` |
+
+Formato del cron: `minuto hora día-del-mes mes día-de-la-semana`
+
+---
+
+### Descargar el Excel generado
+
+Una vez que el workflow corre exitosamente, el archivo `FT buffer remaining cap.xlsx` aparece actualizado directamente en el repositorio. Puedes descargarlo desde GitHub o hacer `git pull` en tu máquina local.
+
+---
+
+### Nota sobre costos
+
+GitHub Actions es **gratuito** para repositorios públicos sin límite de minutos. Para repositorios privados, incluye **2,000 minutos gratis al mes** — este script tarda aproximadamente 1–2 minutos por ejecución, por lo que con una ejecución diaria (≈ 22 días hábiles) usa alrededor de 44 minutos al mes.
+
+---
+
 ## Errores comunes
 
 | Error | Causa probable | Solución |
